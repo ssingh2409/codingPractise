@@ -10,8 +10,8 @@ data = {
 df = pd.DataFrame(data)
 #output
 #	id	name	add
-#	0	1	sha	add1
-#	1	2	sin	[addr2, addr3]
+#	1	sha	    add1
+#	2	sin	    [addr2, addr3]
 
 del_lst = []
 
@@ -31,6 +31,6 @@ for row in df.iterrows():
 df = df.drop(del_lst)
 #output
 #	id	name	add
-#	0	1	sha	add1
-#	2	2	sin	addr2
-#	3	2	sin	addr3
+#	1	sha	    add1
+#	2	sin	    addr2
+#	2	sin	    addr3

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fixtures and Results</title>
+    <link rel="stylesheet" href="../static/css/main.css">
+</head>
+<body>
+
+
+<!-- Navbar -->
+<div class="w3-top">
+    <div class="w3-bar w3-red w3-card w3-left-align w3-large">
+      <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large w3-red" href="javascript:void(0);" onclick="myFunction()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
+      <form action="/" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Home">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <!-- <a href="/" class="w3-bar-item w3-button w3-padding-large w3-white">Home</a> -->
+      <form action="/fix_n_rslts" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Fixtures & Results">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <!-- <a href="/fix_n_rslts" class="w3-bar-item w3-button w3-padding-large w3-hover-white">Fixtures & Results</a> -->
+      <form action="/bet_hist" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Bet History">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <!-- <a href="/bet_hist" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Bet History</a> -->
+      {% if user %}
+      <form action="/user_profile" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="{{ user }}">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <!-- <span class="w3-bar-item w3-padding-large w3-hover-white">{{ user }}</span> -->
+      {% else %}
+      <form action="/login" method="GET">
+          <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Login">
+      </form>
+      {% endif %}
+    </div>
+
+<!-- Header -->
+<header class="w3-container w3-red w3-center" style="padding:128px 16px">
+  <h1 class="w3-margin w3-jumbo">Fixtures & Results</h1>
+</header>
+
+<!-- Fixture Table -->
+    <div class="w3-container" style="margin-top: 80px;">
+        <table class="w3-table w3-bordered">
+            <thead>
+                <tr>
+                    <th>Match Number</th>
+                    <th>Date</th>
+                    <th>Team 1</th>
+                    <th>Team 2</th>
+                    <th>Odds</th>
+                    <th>Result</th>
+                    <th>Bet Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for match in matches %}
+                <tr>
+                    <td>{{ match[0] }}</td>
+                    <td>{{ match[1] }}</td>
+                    <td>{{ match[2] }}</td>
+                    <td>{{ match[3] }}</td>
+                    <td>{{ match[4] }}</td>
+                    <td>{{ match[5] }}</td>
+                    <td>{{ match[6] }}</td>
+                    <td>
+                      {% if match[4] is not none %}
+                      <a href="/match_details/{{ match[0] }}" target="_blank">Details</a>
+                      {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

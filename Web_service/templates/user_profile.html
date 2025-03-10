@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>User Profile</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../static/css/main.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<style>
+body,h1,h2,h3,h4,h5,h6 {font-family: "Lato", sans-serif}
+.w3-bar,h1,button {font-family: "Montserrat", sans-serif}
+.fa-anchor,.fa-history {font-size:200px}
+</style>
+<script>
+function updateTeams() {
+    var matches = JSON.parse(document.getElementById('matches-data').textContent);
+    var matchId = document.getElementById('match_id').value;
+    var teamSelect = document.getElementById('team');
+    teamSelect.innerHTML = '<option value="" disabled selected>Select Team</option>';
+    for (var i = 0; i < matches.length; i++) {
+        if (matches[i][0] == matchId) {
+            var option1 = document.createElement('option');
+            option1.value = matches[i][1];
+            option1.text = matches[i][1];
+            teamSelect.appendChild(option1);
+
+            var option2 = document.createElement('option');
+            option2.value = matches[i][2];
+            option2.text = matches[i][2];
+            teamSelect.appendChild(option2);
+            break;
+        }
+    }
+}
+</script>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="w3-top">
+  <div class="w3-bar w3-red w3-card w3-left-align w3-large">
+    <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large w3-red" href="javascript:void(0);" onclick="myFunction()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
+    <form action="/" method="POST">
+      <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Home">
+      <input type="hidden" name="user" id="user" value="{{ user }}">
+    </form>
+    <form action="/fix_n_rslts" method="POST">
+      <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Fixtures & Results">
+      <input type="hidden" name="user" id="user" value="{{ user }}">
+    </form>
+    <form action="/bet_hist" method="POST">
+      <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Bet History">
+      <input type="hidden" name="user" id="user" value="{{ user }}">
+    </form>
+    {% if user %}
+    <form action="/user_profile" method="POST">
+      <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="{{ user }}">
+      <input type="hidden" name="user" id="user" value="{{ user }}">
+    </form>
+    <form action="/logout" method="POST">
+      <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Sign Out">
+    </form>
+    {% else %}
+    <form action="/login" method="GET">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Login">
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Header -->
+<header class="w3-container w3-red w3-center" style="padding:128px 16px">
+  <h1 class="w3-margin w3-jumbo">Upcoming Matches</h1>
+  <div id="matches-data" style="display:none;">{{ matches|tojson }}</div>
+  <form action="/vote" method="POST">
+    <select id="match_id" name="match_id" onchange="updateTeams()" required>
+      <option value="" disabled selected>Select Match</option>
+      {% for match in matches %}
+      <option value="{{ match[0] }}">{{ match[1] }} vs {{ match[2] }}</option>
+      {% endfor %}
+    </select>
+    <select id="team" name="team" required>
+      <option value="" disabled selected>Select Team</option>
+    </select>
+    <input type="hidden" name="user" id="user" value="{{ user }}">
+    <button type="submit" class="w3-button w3-black w3-padding-large w3-large w3-margin-top">Vote Now</button>
+  </form>
+  {% if message %}
+  <p class="w3-xlarge">{{ message }}</p>
+  {% endif %}
+</header>
+
+<!-- First Grid -->
+<div class="w3-row-padding w3-padding-64 w3-container">
+  <div class="w3-content">
+    <div class="w3-twothird">
+      <h1>Current Standing : {{ standing[0] }}</h1>
+      <h1>Total Win/Loss : {{ standing[1] }}</h1>
+    </div>
+</div>
+
+<!-- Second Grid -->
+<div class="w3-row-padding w3-padding-64 w3-container">
+  <div class="w3-content">
+    <div class="w3-twothird">
+      <h2>Current Vote</h2>
+      <table class="w3-table w3-bordered">
+        <thead>
+            <tr>
+              <th>VS</th>
+              <th>Your Bet</th>
+              <th>Bet Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for match in curr_vote %}
+            <tr>
+              <td>{{ match[0] }}</td>
+              <td>{{ match[1] }}</td>
+              <td>{{ match[2] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- Third Grid -->
+<div class="w3-row-padding w3-light-grey w3-padding-64 w3-container">
+  <div class="w3-content">
+    <div class="w3-twothird">
+      <h2>History</h2>
+      <table class="w3-table w3-bordered">
+        <thead>
+            <tr>
+              <th>Match Date</th>
+              <th>Match</th>
+              <th>Your Bet</th>
+              <th>winner</th>
+              <th>Odds</th>
+              <th>Win/Loss</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for match in prev_matches %}
+            <tr>
+              <td>{{ match[0] }}</td>
+              <td>{{ match[1] }}</td>
+              <td>{{ match[2] }}</td>
+              <td>{{ match[3] }}</td>
+              <td>{{ match[4] }}</td>
+              <td>{{ match[5] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="w3-third w3-center">
+      <i class="fa fa-history w3-padding-64 w3-text-red"></i>
+    </div>
+  </div>
+</div>
+
+
+<div class="w3-container w3-black w3-center w3-opacity w3-padding-64">
+    <h1 class="w3-margin w3-xlarge">Quote of the day: live life</h1>
+</div>
+
+<script>
+// Used to toggle the menu on small screens when clicking on the menu button
+function myFunction() {
+  var x = document.getElementById("navDemo");
+  if (x.className.indexOf("w3-show") == -1) {
+    x.className += " w3-show";
+  } else { 
+    x.className = x.className.replace(" w3-show", "");
+  }
+}
+</script>
+
+</body>
+</html>

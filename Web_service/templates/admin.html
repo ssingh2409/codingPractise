@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Admin Page</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../static/css/main.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<style>
+  body,h1,h2,h3,h4,h5,h6 {font-family: "Lato", sans-serif}
+  .w3-bar,h1,button {font-family: "Montserrat", sans-serif}
+  .fa-anchor,.fa-coffee {font-size:200px}
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="w3-top">
+    <div class="w3-bar w3-red w3-card w3-left-align w3-large">
+      <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large w3-red" href="javascript:void(0);" onclick="myFunction()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
+      <form action="/" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Home">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <form action="/fix_n_rslts" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Fixtures & Results">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <form action="/bet_hist" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Bet History">
+        <input type="hidden" name="user" id="user" value="{{ user }}">
+      </form>
+      <form action="/admin" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="admin">
+        <input type="hidden" name="user" id="user" value="admin">
+      </form>
+      <form action="/logout" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Sign Out">
+      </form>
+    </div>
+  </div>
+
+<!-- Header -->
+<header class="w3-container w3-red w3-center" style="padding:128px 16px">
+  <h1 class="w3-margin w3-jumbo">Admin Page</h1>
+</header>
+
+<!-- Admin Form -->
+<div class="w3-row-padding w3-padding-64 w3-container">
+  <div class="w3-content">
+    <div class="w3-twothird">
+      <h1>Manage Matches</h1>
+      <table class="w3-table w3-bordered">
+        <thead>
+            <tr>
+              <th>Match ID</th>
+              <th>Match Date</th>
+              <th>Team 1</th>
+              <th>Team 2</th>
+              <th>Bet Amount</th>
+              <th>Choose Winner</th>
+              <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for match in matches %}
+            <tr>
+              <td>{{ match[0] }}</td>
+              <td>{{ match[1] }}</td>
+              <td>{{ match[2] }}</td>
+              <td>{{ match[3] }}</td>
+              <td>{{ match[5] }}</td>
+              <form action="/admin" method="POST" style="display:inline;">
+              <td>
+                <select name="winner" id="winner" class="w3-select">
+                    <option value="{{ match[2] }}">{{ match[2] }}</option>
+                    <option value="{{ match[3] }}">{{ match[3] }}</option>
+                </select>
+              </td>
+              <td>
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="match_id" value="{{ match[0] }}">
+                <button type="submit" class="w3-button w3-black w3-padding-small">Update</button>
+              </td>
+              </form>
+              <form action="/admin" method="POST" style="display:inline;">
+              <td>
+                <input type="hidden" name="action" value="modify">
+                <input type="hidden" name="match_id" value="{{ match[0] }}">
+                <button type="submit" class="w3-button w3-black w3-padding-small">Toss Delayed</button>
+              </td>
+            </form>
+            </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="w3-container w3-black w3-center w3-opacity w3-padding-64">
+    <h1 class="w3-margin w3-xlarge">Quote of the day: live life</h1>
+</div>
+
+<script>
+// Used to toggle the menu on small screens when clicking on the menu button
+function myFunction() {
+  var x = document.getElementById("navDemo");
+  if (x.className.indexOf("w3-show") == -1) {
+    x.className += " w3-show";
+  } else { 
+    x.className = x.className.replace(" w3-show", "");
+  }
+}
+</script>
+
+</body>
+</html>

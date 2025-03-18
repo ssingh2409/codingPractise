@@ -2,6 +2,8 @@ from flask import Flask, render_template, request
 import psycopg2 as pg
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
+from datetime import datetime
+import pytz
 
 
 app = Flask(__name__)
@@ -26,14 +28,14 @@ def connect_to_db():
 ## API CONNECTION BLOCK
 ############################################################################################################################
 def get_api_match_data(api_id):
-    url = "https://api.cricapi.com/v1/series_info"
+    url = "https://api.cricapi.com/v1/match_info"
     params = {
         "apikey": "d8d8ad0a-46fa-4b21-b97c-719e7b56342a",
         "id": f"{api_id}"
     }
     response = requests.get(url, params=params)
     response.raise_for_status()  # Raise an exception for HTTP errors
-    return response.json()['data']['matchStarted']
+    return response.json()
 
 
 ############################################################################################################################
@@ -171,7 +173,7 @@ def get_active_matches():
     cur = conn.cursor()
     query = '''
     select 
-        m.id, t1.team_name ||' vs '|| t2.team_name, m.odds
+        m.id, t1.team_name ||' vs '|| t2.team_name, m.odds, m.api_id, m.toss_time
     from
         ipl.d_matches m
         join ipl.d_teams t1 on m.team_1 = t1.id
@@ -190,7 +192,7 @@ def check_toss_time():
     conn = connect_to_db()
     cur = conn.cursor()
     query = f'''
-    select id, case when current_timestamp > toss_time then true else false end toss_update, api_id from ipl.d_matches where id = (select min(id) from ipl.d_matches where odds is null)
+    select id, case when current_timestamp at time zone 'Asia/Kolkata' > toss_time then true else false end toss_update, api_id from ipl.d_matches where id = (select min(id) from ipl.d_matches where odds is null)
     '''
     cur.execute(query)
     result = cur.fetchone()
@@ -630,7 +632,14 @@ def odd_update():
     match_id, cutoff, api_id = check_toss_time()
 
     if cutoff:
-        toss_done = get_api_match_data(api_id)
+        api_result = get_api_match_data(api_id)
+        toss_time_gmt = api_result['dateTimeGMT']
+        gmt = pytz.timezone('GMT')
+        ist = pytz.timezone('Asia/Kolkata')
+        toss_time = datetime.strptime(toss_time_gmt, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=gmt).astimezone(ist)
+
+
+        toss_done = True if api_result['matchStarted'] else False
 
         if toss_done:
             conn = connect_to_db()
@@ -641,9 +650,10 @@ def odd_update():
                     select 
                         user_id, max(update_ts) upd
                     from 
-                        ipl.f_bets 
+                        ipl.f_bets s
                     where 
-                        match_id = {match_id} 
+                        match_id = {match_id}
+                        and update_ts <= {toss_time}
                     group by 1
                 )
                 , bets as (
@@ -680,10 +690,78 @@ def odd_update():
             conn.close()
 
 
+#############################################################################################################################
+## WINNER UPDATE
+#############################################################################################################################
+def winner_update():
+    active_matches = get_active_matches()
+    for match in active_matches:
+        match_id = match[0]
+        api_id = match[3]
+        api_result = get_api_match_data(api_id)
+        match_over = True if api_result['matchEnded'] else False
+
+        if match_over:
+            winner = api_result['matchWinner']
+            toss_time_gmt = api_result['dateTimeGMT']
+            gmt = pytz.timezone('GMT')
+            ist = pytz.timezone('Asia/Kolkata')
+            toss_time = datetime.strptime(toss_time_gmt, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=gmt).astimezone(ist)
+            
+            conn = connect_to_db()
+            cur = conn.cursor()
+
+            query = f"UPDATE ipl.d_matches SET winner = (select id from ipl.d_teams where team_name = '{winner}') WHERE id = {match_id}"
+            cur.execute(query)
+
+            query_upd_winner = f'''
+                with cte as (
+                    select user_id, max(update_ts) upd 
+                    from ipl.f_bets where match_id = {match_id} and update_ts <= {toss_time} group by 1
+                )
+                ,user_votes as (
+                    select a.user_id, bet_on 
+                    from ipl.f_bets a
+                    join cte b on a.user_id = b.user_id and a.update_ts = b.upd
+                    where a.match_id = {match_id}
+                )
+                ,winner_amount as (
+                    select a.user_id,
+                    case 
+                        when winner = team_1 then split_part(odds, '/', 1)::float
+                        else split_part(odds, '/', 2)::float
+                    end win_amount
+                    from user_votes a
+                    join ipl.d_matches b on a.bet_on = b.winner and b.id = {match_id}
+                )
+                , final_amount as (
+                    select 
+                        du.id, 
+                        case 
+                            when fm.user_id is not null then win_amount 
+                            when fm.user_id is null then 0 - (select bet_amount from ipl.d_matches where id = {match_id})
+                        end net
+                    from 
+                        ipl.d_users du 
+                    left join
+                        winner_amount fm on du.id = fm.user_id
+                )
+                update ipl.d_users a
+                set net_amount = net_amount + b.net
+                from final_amount b
+                where a.id = b.id
+            '''
+
+            cur.execute(query_upd_winner)
+            conn.commit()
+            conn.close()
+
+
 # Function to start the scheduler
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(odd_update, 'interval', seconds=10)  # Adjust the interval as needed
+    scheduler.add_job(odd_update, 'interval', seconds=10)
+    scheduler.add_job(winner_update, 'interval', hours=3)
     scheduler.start()
 
 #############################################################################################################################

@@ -1,10 +1,10 @@
 import requests
 
-def get_data():
-    url = "https://api.cricapi.com/v1/series_info"
+def get_data(match_id):
+    url = "https://api.cricapi.com/v1/match_info"
     params = {
   "apikey": "d8d8ad0a-46fa-4b21-b97c-719e7b56342a",
-  "id": "49fc7a37-da67-435e-bf5f-00da233e9ff4"
+  "id": f"{match_id}"
 }
     response = requests.get(url, params=params)
     response.raise_for_status()  # Raise an exception for HTTP errors
@@ -18,10 +18,8 @@ def get_matching_id(match_list, target_id):
     return None
 
 
+print(get_data('cacf2d34-41b8-41dd-91ed-5183d880084c'))
 
 
-print(get_matching_id(get_data()['data']['matchList'], '445e4eac-2a9c-4810-afd4-77197aeed7c3'))
-# {
-#   "apikey": "d8d8ad0a-46fa-4b21-b97c-719e7b56342a",
-#   "id": "445e4eac-2a9c-4810-afd4-77197aeed7c3"
-# }
+
+# print(get_matching_id(get_data()['data']['matchList'], 'cacf2d34-41b8-41dd-91ed-5183d880084c'))

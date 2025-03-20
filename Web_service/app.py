@@ -173,7 +173,7 @@ def get_active_matches():
     cur = conn.cursor()
     query = '''
     select 
-        m.id, t1.team_name ||' vs '|| t2.team_name, m.odds, m.api_id, m.toss_time
+        m.id, t1.team_name ||' vs '|| t2.team_name, m.odds, m.api_id, case when current_timestamp at time zone 'Asia/Kolkata' + interval '3.5 hours' > toss_time then true else false end
     from
         ipl.d_matches m
         join ipl.d_teams t1 on m.team_1 = t1.id
@@ -192,12 +192,12 @@ def check_toss_time():
     conn = connect_to_db()
     cur = conn.cursor()
     query = f'''
-    select id, case when current_timestamp at time zone 'Asia/Kolkata' > toss_time then true else false end toss_update, api_id from ipl.d_matches where id = (select min(id) from ipl.d_matches where odds is null)
+    select id, case when current_timestamp at time zone 'Asia/Kolkata' > toss_time then true else false end toss_update, api_id, toss_time from ipl.d_matches where id = (select min(id) from ipl.d_matches where odds is null)
     '''
     cur.execute(query)
     result = cur.fetchone()
     conn.close()
-    return result[0], result[1], result[2]
+    return result[0], result[1], result[2], result[3]
 
 
 ############################################################################################################################
@@ -220,7 +220,7 @@ def render_homepage(user=None, message=None):
 
 
 ## Function to render the User Profile page with optional user and message parameters
-def render_user_profile(user):
+def render_user_profile(user, welcomemessage=None):
     matches = upcoming_matches()
     user_id = get_user_id(user)
     match_list = ','.join(str(i[0]) for i in matches)
@@ -264,7 +264,10 @@ def render_user_profile(user):
 
     conn.close()
 
-    return render_template('user_profile.html', user=user, matches=matches, prev_matches=prev_matches, curr_vote=curr_vote, standing=standing)
+    if welcomemessage:
+        return render_template('user_profile.html', user=user, matches=matches, prev_matches=prev_matches, curr_vote=curr_vote, standing=standing, welcomemessage=welcomemessage)
+    else:
+        return render_template('user_profile.html', user=user, matches=matches, prev_matches=prev_matches, curr_vote=curr_vote, standing=standing)
 
 
 ############################################################################################################################
@@ -297,11 +300,14 @@ def userhome():
     query = f"SELECT * FROM ipl.user_credentials WHERE user_id = '{usr}' AND pwd = '{pwd}'"
     cur.execute(query)
     result = cur.fetchone()
-    
+    if not result: return render_template('login.html', error='Invalid username or password')
+
+    is_validated = result[5]
+    u_name = result[2]
     conn.close()
 
-    if result: return render_homepage(user=usr)
-    else: return render_template('login.html', error='Invalid username or password')
+    if not is_validated: return render_template('login.html', error='User validation pending. Please contact admin to activate your account.')
+    else: return render_user_profile(user=usr, welcomemessage=f'Welcome {u_name}!')
 
 
 @app.route('/signup', methods=['POST'])
@@ -376,34 +382,27 @@ def bet_history():
     cur = conn.cursor()
     
     query = '''
-    with cte as(
-        select match_id, user_id, max(update_ts) upd from ipl.f_bets group by 1,2
+    with cte as (
+        select dm.id match_id, du.id user_id from ipl.d_matches dm
+        cross join ipl.d_users du 
+        where dm.id in (select distinct match_id from ipl.v_match_details)
     )
-    select 
-        c.id, 
-        b.user_id,
-        c.match_dt,
-        d1.team_name || ' vs ' || d2.team_name,
-        d3.team_name, 
-        d4.team_name,
-        c.odds
-    from ipl.f_bets a
-    join cte b 
-        on a.match_id = b.match_id
-        and a.user_id = b.user_id
-        and a.update_ts = b.upd
-    join ipl.d_matches c
-        on a.match_id = c.id
-    join ipl.d_teams d1
-        on c.team_1 = d1.id
-    join ipl.d_teams d2
-        on c.team_2 = d2.id
-    join ipl.d_teams d3
-        on a.bet_on = d3.id 
-    left join ipl.d_teams d4
-        on c.winner = d4.id
-    order by c.match_dt desc
-'''
+    , user_detail as (
+    select
+        cte.match_id, cte.user_id, coalesce("Win/Loss"::text , 'dnp') match_result
+    from 
+        cte  
+        left join ipl.v_match_details v on v.match_id = cte.match_id and v.id = cte.user_id
+    )
+    select match_id,
+        max(case when user_id = 1 then match_result else null end) "test1_name",
+        max(case when user_id = 2 then match_result else null end) "test2_name",
+        max(case when user_id = 3 then match_result else null end) "test3_name"
+    from 
+        user_detail
+    group by 1
+    order by match_id
+    '''
     cur.execute(query)
     bets = cur.fetchall()
     
@@ -426,8 +425,14 @@ def vote():
 
     conn = connect_to_db()
     cur = conn.cursor()
+    check_query = f"SELECT case when current_timestamp at time zone 'Asia/Kolkata' > toss_time then true else false end FROM ipl.d_matches WHERE match_id = {match_id}"
+    cur.execute(check_query)
+    result = cur.fetchone()
+    if result[0]: 
+        conn.close()
+        return render_user_profile(user=user, welcomemessage='Sorry, the toss time has passed for this match. You cannot vote now.')
 
-    insert_query = f"INSERT INTO ipl.f_bets (user_id, match_id, bet_on, update_ts) VALUES ({user_id}, '{match_id}', {team_id}, current_timestamp)"
+    insert_query = f"INSERT INTO ipl.f_bets (user_id, match_id, bet_on, update_ts) VALUES ({user_id}, '{match_id}', {team_id}, current_timestamp at time zone 'Asia/Kolkata')"
     cur.execute(insert_query)
     conn.commit()
     
@@ -629,17 +634,17 @@ def admin():
 ## ODDS UPDATE
 #############################################################################################################################
 def odd_update():
-    match_id, cutoff, api_id = check_toss_time()
+    match_id, cutoff, api_id, toss_time = check_toss_time()
 
     if cutoff:
-        api_result = get_api_match_data(api_id)
-        toss_time_gmt = api_result['dateTimeGMT']
-        gmt = pytz.timezone('GMT')
-        ist = pytz.timezone('Asia/Kolkata')
-        toss_time = datetime.strptime(toss_time_gmt, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=gmt).astimezone(ist)
+        # api_result = get_api_match_data(api_id)
+        # toss_time_gmt = api_result['dateTimeGMT']
+        # gmt = pytz.timezone('GMT')
+        # ist = pytz.timezone('Asia/Kolkata')
+        # toss_time = datetime.strptime(toss_time_gmt, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=gmt).astimezone(ist)
 
 
-        toss_done = True if api_result['matchStarted'] else False
+        toss_done = True #if api_result['matchStarted'] else False
 
         if toss_done:
             conn = connect_to_db()
@@ -698,70 +703,73 @@ def winner_update():
     for match in active_matches:
         match_id = match[0]
         api_id = match[3]
-        api_result = get_api_match_data(api_id)
-        match_over = True if api_result['matchEnded'] else False
+        match_over_check = True if match[4] else False
+        if match_over_check:
+            api_result = get_api_match_data(api_id)
+            match_over = True if api_result['matchEnded'] else False
 
-        if match_over:
-            winner = api_result['matchWinner']
-            toss_time_gmt = api_result['dateTimeGMT']
-            gmt = pytz.timezone('GMT')
-            ist = pytz.timezone('Asia/Kolkata')
-            toss_time = datetime.strptime(toss_time_gmt, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=gmt).astimezone(ist)
-            
-            conn = connect_to_db()
-            cur = conn.cursor()
+            if match_over:
+                winner = api_result['matchWinner']
+                # toss_time_gmt = api_result['dateTimeGMT']
+                # gmt = pytz.timezone('GMT')
+                # ist = pytz.timezone('Asia/Kolkata')
+                # toss_time = datetime.strptime(toss_time_gmt, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=gmt).astimezone(ist)
+                
+                conn = connect_to_db()
+                cur = conn.cursor()
 
-            query = f"UPDATE ipl.d_matches SET winner = (select id from ipl.d_teams where team_name = '{winner}') WHERE id = {match_id}"
-            cur.execute(query)
+                query = f"UPDATE ipl.d_matches SET winner = (select id from ipl.d_teams where team_name = '{winner}') WHERE id = {match_id}"
+                cur.execute(query)
 
-            query_upd_winner = f'''
-                with cte as (
-                    select user_id, max(update_ts) upd 
-                    from ipl.f_bets where match_id = {match_id} and update_ts <= {toss_time} group by 1
-                )
-                ,user_votes as (
-                    select a.user_id, bet_on 
-                    from ipl.f_bets a
-                    join cte b on a.user_id = b.user_id and a.update_ts = b.upd
-                    where a.match_id = {match_id}
-                )
-                ,winner_amount as (
-                    select a.user_id,
-                    case 
-                        when winner = team_1 then split_part(odds, '/', 1)::float
-                        else split_part(odds, '/', 2)::float
-                    end win_amount
-                    from user_votes a
-                    join ipl.d_matches b on a.bet_on = b.winner and b.id = {match_id}
-                )
-                , final_amount as (
-                    select 
-                        du.id, 
+                query_upd_winner = f'''
+                    with cte as (
+                        select user_id, max(update_ts) upd 
+                        from ipl.f_bets where match_id = {match_id} and update_ts <= (select toss_time from ipl.d_matches where id = {match_id})
+                        group by 1
+                    )
+                    ,user_votes as (
+                        select a.user_id, bet_on 
+                        from ipl.f_bets a
+                        join cte b on a.user_id = b.user_id and a.update_ts = b.upd
+                        where a.match_id = {match_id}
+                    )
+                    ,winner_amount as (
+                        select a.user_id,
                         case 
-                            when fm.user_id is not null then win_amount 
-                            when fm.user_id is null then 0 - (select bet_amount from ipl.d_matches where id = {match_id})
-                        end net
-                    from 
-                        ipl.d_users du 
-                    left join
-                        winner_amount fm on du.id = fm.user_id
-                )
-                update ipl.d_users a
-                set net_amount = net_amount + b.net
-                from final_amount b
-                where a.id = b.id
-            '''
+                            when winner = team_1 then split_part(odds, '/', 1)::float
+                            else split_part(odds, '/', 2)::float
+                        end win_amount
+                        from user_votes a
+                        join ipl.d_matches b on a.bet_on = b.winner and b.id = {match_id}
+                    )
+                    , final_amount as (
+                        select 
+                            du.id, 
+                            case 
+                                when fm.user_id is not null then win_amount 
+                                when fm.user_id is null then 0 - (select bet_amount from ipl.d_matches where id = {match_id})
+                            end net
+                        from 
+                            ipl.d_users du 
+                        left join
+                            winner_amount fm on du.id = fm.user_id
+                    )
+                    update ipl.d_users a
+                    set net_amount = net_amount + b.net
+                    from final_amount b
+                    where a.id = b.id
+                '''
 
-            cur.execute(query_upd_winner)
-            conn.commit()
-            conn.close()
+                cur.execute(query_upd_winner)
+                conn.commit()
+                conn.close()
 
 
 # Function to start the scheduler
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(odd_update, 'interval', seconds=10)
-    scheduler.add_job(winner_update, 'interval', hours=3)
+    scheduler.add_job(winner_update, 'interval', hours=1)
     scheduler.start()
 
 #############################################################################################################################
@@ -773,4 +781,4 @@ def start_scheduler():
 ##########
 if __name__ == '__main__':
     start_scheduler()
-    app.run(debug=False)
+    app.run(debug=False, use_reloader=True)

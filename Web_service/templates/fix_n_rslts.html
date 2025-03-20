@@ -32,6 +32,9 @@
         <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="{{ user }}">
         <input type="hidden" name="user" id="user" value="{{ user }}">
       </form>
+      <form action="/logout" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Sign Out">
+      </form>
       <!-- <span class="w3-bar-item w3-padding-large w3-hover-white">{{ user }}</span> -->
       {% else %}
       <form action="/login" method="GET">

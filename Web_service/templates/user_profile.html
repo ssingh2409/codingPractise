@@ -34,6 +34,9 @@ function updateTeams() {
         }
     }
 }
+function showUsername(message) {
+            alert(message);
+}
 </script>
 </head>
 <body>
@@ -182,6 +185,12 @@ function myFunction() {
   }
 }
 </script>
+
+{% if welcomemessage %}
+    <script>
+        showUsername("{{ welcomemessage }}");
+    </script>
+    {% endif %}
 
 </body>
 </html>

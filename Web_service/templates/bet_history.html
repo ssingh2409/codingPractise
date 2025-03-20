@@ -31,6 +31,9 @@
         <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="{{ user }}">
         <input type="hidden" name="user" id="user" value="{{ user }}">
       </form>
+      <form action="/logout" method="POST">
+        <input type="submit" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" value="Sign Out">
+      </form>
       <!-- <span class="w3-bar-item w3-padding-large w3-hover-white">{{ user }}</span> -->
       {% else %}
       <form action="/login" method="GET">
@@ -51,12 +54,9 @@
             <thead>
                 <tr>
                     <th>Match #</th>
-                    <th>user</th>
-                    <th>Match Date</th>
-                    <th>VS</th>
-                    <th>Bet on</th>
-                    <th>Winner</th>
-                    <th>Odds</th>
+                    <th>user 1</th>
+                    <th>user 2</th>
+                    <th>user 3</th>
                 </tr>
             </thead>
             <tbody>
@@ -66,9 +66,6 @@
                     <td>{{ bet[1] }}</td>
                     <td>{{ bet[2] }}</td>
                     <td>{{ bet[3] }}</td>
-                    <td>{{ bet[4] }}</td>
-                    <td>{{ bet[5] }}</td>
-                    <td>{{ bet[6] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
